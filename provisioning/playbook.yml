@@ -1,0 +1,54 @@
+---
+- hosts: all
+  become: yes
+
+  vars:
+    node_apps_location: /usr/local/opt/node
+  tasks:
+    - name: Install EPEL repo
+      ansible.builtin.yum:
+        name: epel-release
+        state: present
+    - name: Install Remi GPG key.
+      ansible.builtin.rpm_key:
+        key: "https://rpms.remirepo.net/RPM-GPG-KEY-remi"
+        state: present
+        validate_certs: no
+    - name: Install Remi repo.
+      ansible.builtin.yum:
+        name: "https://rpms.remirepo.net/enterprise/remi-release-7.rpm"
+        state: present
+        validate_certs: no
+    - name: Ensure firewall is stopped
+      ansible.builtin.service: 
+        name: firewalld 
+        state: stopped
+    - name: Install Node.js and npm
+      ansible.builtin.yum:
+        name: npm
+        state: present
+        enablerepo: epel
+    - name: Install Forever
+      ansible.builtin.npm:
+        name: forever
+        global: yes
+        state: present
+    - name: Ensure Node.js folder exists
+      ansible.builtin.file:
+        path: "{{ node_apps_location }}"
+        state: directory
+    - name: Copy example Node.js app to server
+      ansible.builtin.copy:
+        src: app
+        dest: "{{ node_apps_location }}"
+    - name: Install app dependancies defined in package.json.
+      ansible.builtin.npm:
+        path: "{{ node_apps_location }}/app"
+    - name: Check list of running node Node.js
+      command: forever list
+      register: forever_list
+      changed_when: false
+    - name: Start example Node.js app.
+      command: "forever start {{ node_apps_location }}/app/app.js"
+      when: "forever_list.stdout.find(node_apps_location + '/app/app.js') == -1"
+
